@@ -199,28 +199,94 @@ enum BlockingScript {
           }
         } catch (e) { add('R4', 'one reel survives containment', 'fail', 'threw: ' + e); }
 
-        // Leak — rule-independent. Catches a leak from a rule nobody asserted.
+        // Leak — rule-independent. Catches Reels coming back by a route no
+        // rule anticipated.
+        //
+        // Deliberately EXACT, not a prefix match. `a[href^="/reels/"]` also
+        // matches two things that are legitimately on screen:
+        //   /reels/<shortcode>/   a followed account's video post in the feed,
+        //                         which we keep on purpose (§4.4)
+        //   /reels/audio/<id>/    audio attribution inside a reel opened from
+        //                         a DM, which we allow on purpose (R2)
+        // Matching those turned the banner amber during normal use. An alarm
+        // that cries wolf is worse than no alarm.
         try {
-          var links = document.querySelectorAll('a[href^="/reels/"], a[href="/reels"]');
+          var links = document.querySelectorAll('a[href="/reels/"], a[href="/reels"]');
           var shown = 0;
           for (var k = 0; k < links.length; k++) {
             var r = links[k].getBoundingClientRect();
             if (r.width > 0 && r.height > 0) shown++;
           }
-          add('leak', 'no visible /reels/ link', shown === 0 ? 'pass' : 'fail',
-              shown === 0 ? '' : shown + ' visible');
-        } catch (e) { add('leak', 'no visible /reels/ link', 'fail', 'threw: ' + e); }
+          add('screen', 'no Reels entry point visible', shown === 0 ? 'pass' : 'fail',
+              shown === 0 ? '' : shown + ' visible — R3 is not hiding the tab');
+        } catch (e) { add('screen', 'no Reels entry point visible', 'fail', 'threw: ' + e); }
 
         return out;
       }
 
-      function report() {
+      function send(payload) {
         try {
           var h = window.webkit
             && window.webkit.messageHandlers
             && window.webkit.messageHandlers.\(messageHandler);
-          if (h) h.postMessage({ assertions: assertions() });
+          if (h) h.postMessage(payload);
         } catch (e) {}
+      }
+
+      function report() { send({ assertions: assertions() }); }
+
+      // --- R7: suggested (injected) feed cards -------------------------
+      // The home feed mixes posts from accounts you follow with algorithmically
+      // injected ones. The injected cards are the infinite-scroll hole, and
+      // they are also where reels arrive in the feed — so this single rule is
+      // the whole home-feed strategy (§4.4).
+      //
+      // Language-invariant discriminator, verified against a real capture:
+      // every button in an organic card's header contains an <svg> icon (More
+      // options, Like, Comment). The Follow button on an injected card is the
+      // only one with TEXT and NO ICON. So:
+      //
+      //   hide an <article> containing a [role=button] that
+      //     (a) appears BEFORE the card's [role=presentation] media block,
+      //     (b) contains no <svg>, and
+      //     (c) has non-empty text.
+      //
+      // No strings, so it behaves identically in English, Spanish and Mandarin.
+      // NOTE: ads are NOT matched — their CTAs sit below the media and carry a
+      // chevron <svg>. Leaving ads alone is deliberate (§7.10).
+      var OVERMATCH_RATIO = 0.7;
+
+      function isInjected(article) {
+        var media = article.querySelector('[role="presentation"]');
+        if (!media) return false;                  // can't locate the header
+        var buttons = article.querySelectorAll('[role="button"]');
+        for (var i = 0; i < buttons.length; i++) {
+          var b = buttons[i];
+          // keep only buttons positioned before the media block
+          var mediaFollows = b.compareDocumentPosition(media) & Node.DOCUMENT_POSITION_FOLLOWING;
+          if (!mediaFollows) continue;
+          if (b.querySelector('svg')) continue;    // icon button, not Follow
+          if (!(b.textContent || '').trim()) continue;
+          return true;
+        }
+        return false;
+      }
+
+      function hideSuggested() {
+        var articles = document.querySelectorAll('article');
+        if (!articles.length) return;
+        var matches = [];
+        for (var i = 0; i < articles.length; i++) {
+          if (isInjected(articles[i])) matches.push(articles[i]);
+        }
+        // Over-match guard: hiding most of the feed means the discriminator
+        // broke, not that the feed is all suggestions. Report, don't hide.
+        if (articles.length >= 3 && matches.length / articles.length > OVERMATCH_RATIO) {
+          send({ events: [{ source: 'R7', message: 'over-match guard: ' + matches.length +
+                 ' of ' + articles.length + ' feed cards matched — not hiding' }] });
+          return;
+        }
+        matches.forEach(function (a) { a.setAttribute('data-plainfeed-hidden', '1'); });
       }
 
       var pending = null;
@@ -232,6 +298,7 @@ enum BlockingScript {
           // this, one exception kills every dynamic rule for the page's life.
           try { mono(); } catch (e) {}      // re-add if IG replaces <body>
           try { containReels(); } catch (e) {}
+          try { hideSuggested(); } catch (e) {}
           try { report(); } catch (e) {}
         }, 150);
       }
@@ -239,6 +306,7 @@ enum BlockingScript {
       function start() {
         try { mono(); } catch (e) {}
         try { containReels(); } catch (e) {}
+        try { hideSuggested(); } catch (e) {}
         try { report(); } catch (e) {}
         new MutationObserver(schedule).observe(document.documentElement, {
           childList: true, subtree: true

@@ -3,6 +3,48 @@
 Build number is shown in the launch banner, so a build on the phone can be
 identified without plugging it into Xcode.
 
+## v1.7 — 2026-10-10 — suggested feed cards hidden (R7)
+
+**Added**
+- **R7 — injected feed cards are hidden.** The home feed mixes posts from
+  accounts you follow with algorithmically injected ones; the injected cards are
+  the infinite-scroll hole *and* where reels arrive in the feed, so this one
+  rule is the whole home-feed strategy (§4.4).
+
+  Discriminator is structural, with no strings in it: every button in an organic
+  card's header contains an `<svg>` icon, while the Follow button on an injected
+  card is the only one with text and no icon. So hide an `<article>` holding a
+  `[role="button"]` that precedes the `[role="presentation"]` media block,
+  contains no `<svg>`, and has text. Identical behaviour in every language.
+
+  Verified against the captured feed: 8/8 correct — both injected cards hidden,
+  all organic cards kept, **both ads kept** (their CTAs sit below the media and
+  carry a chevron). Leaving ads alone is deliberate (§7.10).
+- **Over-match guard.** If R7 matches more than 70% of a feed of 3+ cards it
+  hides nothing and reports to Diagnostics instead — that ratio means the
+  discriminator broke, not that the feed is all suggestions.
+- JS rules can now report events about themselves to the diagnostics log.
+
+**Changed**
+- Renamed the `leak` check to `screen — no Reels entry point visible`. "Leak"
+  read like a data leak; it means Reels reaching the screen.
+
+## v1.6 — 2026-10-10 — fix false-positive leak alarm
+
+**Fixed**
+- **The leak check fired during normal use**, turning the banner amber for no
+  reason. It used a prefix match, `a[href^="/reels/"]`, which also matches two
+  things that are legitimately on screen: `/reels/<shortcode>/` on a followed
+  account's video post in the feed (kept on purpose, §4.4) and
+  `/reels/audio/<id>/` inside a reel opened from a DM (allowed on purpose, R2).
+  Narrowed to an exact match on the Reels feed link, which is the only
+  unambiguous case and is exactly what R3 hides.
+
+  This was the failure mode the whole assertion design exists to avoid: an
+  alarm that cries wolf is worse than no alarm, because you learn to ignore it.
+- Renamed the check to "Reels feed link not visible", and its failure detail
+  now names the rule at fault (R3).
+
 ## v1.5 — 2026-10-10 — persistent banner
 
 **Changed**
@@ -66,6 +108,48 @@ identified without plugging it into Xcode.
 - Anonymised real account handles and reel shortcodes in tracked docs. The
   selector analysis was quoting 8 accounts from the home feed, which revealed
   who the user follows; placeholders carry the same analytical value.
+
+## v1.7 — 2026-10-10 — suggested feed cards hidden (R7)
+
+**Added**
+- **R7 — injected feed cards are hidden.** The home feed mixes posts from
+  accounts you follow with algorithmically injected ones; the injected cards are
+  the infinite-scroll hole *and* where reels arrive in the feed, so this one
+  rule is the whole home-feed strategy (§4.4).
+
+  Discriminator is structural, with no strings in it: every button in an organic
+  card's header contains an `<svg>` icon, while the Follow button on an injected
+  card is the only one with text and no icon. So hide an `<article>` holding a
+  `[role="button"]` that precedes the `[role="presentation"]` media block,
+  contains no `<svg>`, and has text. Identical behaviour in every language.
+
+  Verified against the captured feed: 8/8 correct — both injected cards hidden,
+  all organic cards kept, **both ads kept** (their CTAs sit below the media and
+  carry a chevron). Leaving ads alone is deliberate (§7.10).
+- **Over-match guard.** If R7 matches more than 70% of a feed of 3+ cards it
+  hides nothing and reports to Diagnostics instead — that ratio means the
+  discriminator broke, not that the feed is all suggestions.
+- JS rules can now report events about themselves to the diagnostics log.
+
+**Changed**
+- Renamed the `leak` check to `screen — no Reels entry point visible`. "Leak"
+  read like a data leak; it means Reels reaching the screen.
+
+## v1.6 — 2026-10-10 — fix false-positive leak alarm
+
+**Fixed**
+- **The leak check fired during normal use**, turning the banner amber for no
+  reason. It used a prefix match, `a[href^="/reels/"]`, which also matches two
+  things that are legitimately on screen: `/reels/<shortcode>/` on a followed
+  account's video post in the feed (kept on purpose, §4.4) and
+  `/reels/audio/<id>/` inside a reel opened from a DM (allowed on purpose, R2).
+  Narrowed to an exact match on the Reels feed link, which is the only
+  unambiguous case and is exactly what R3 hides.
+
+  This was the failure mode the whole assertion design exists to avoid: an
+  alarm that cries wolf is worse than no alarm, because you learn to ignore it.
+- Renamed the check to "Reels feed link not visible", and its failure detail
+  now names the rule at fault (R3).
 
 ## v1.5 — 2026-10-10 — persistent banner
 

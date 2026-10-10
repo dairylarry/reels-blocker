@@ -222,9 +222,19 @@ extension WebViewStore: WKScriptMessageHandler {
         didReceive message: WKScriptMessage
     ) {
         guard message.name == BlockingScript.messageHandler,
-              let body = message.body as? [String: Any],
-              let raw = body["assertions"] as? [[String: Any]]
+              let body = message.body as? [String: Any]
         else { return }
+
+        // Events reported by a rule about itself — e.g. R7's over-match guard.
+        if let events = body["events"] as? [[String: Any]] {
+            for e in events {
+                guard let source = e["source"] as? String,
+                      let message = e["message"] as? String else { continue }
+                diagnostics.log(source, message)
+            }
+        }
+
+        guard let raw = body["assertions"] as? [[String: Any]] else { return }
 
         let now = Date()
         let results: [AssertionResult] = raw.compactMap { entry in

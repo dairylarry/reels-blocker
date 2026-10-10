@@ -558,7 +558,14 @@ there and the claim is false.
 | R2 | a navigation to a path under `/reels/` | it classified as a known shape, not `.other` | Instagram **added** a reel surface, e.g. `/reels/collection/<id>/`, which we currently allow silently |
 | R4 | reel viewer open (a `<video>` outside any `<article>`) | its nearest ancestor holding `a[href^="/reels/audio/"]` exists | the audio-link anchor moved — containment inert, swiping works again |
 | R4 scope | on the feed | every `<video>` is inside an `<article>` | a feed video appears outside one — R4 could start eating feed posts. Early warning for the *dangerous* direction |
-| leak | any page, after rules run | nothing linking to `/reels/` is visible with a non-zero box | a leak from a rule we never thought to assert |
+| leak | any page, after rules run | no link to the Reels **feed** (`href="/reels/"` exactly) is visible | a leak from a rule we never thought to assert |
+
+The leak check matches the feed link **exactly**, not by prefix. A prefix also
+catches `/reels/<shortcode>/` on a followed account's video post and
+`/reels/audio/<id>/` inside a reel opened from a DM — both deliberately kept,
+both of which made the banner fire during normal use (fixed in v1.6). An alarm
+that cries wolf is worse than no alarm, which is the same reason counters were
+rejected.
 
 **What it buys.** Without assertions, a breakage goes: you notice reels, report
 it, we reproduce, capture, diff, locate. With them: the banner names the dead
