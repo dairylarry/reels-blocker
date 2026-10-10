@@ -1,0 +1,9 @@
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.DS_Store
+
+# Authenticated page dumps — contain live CSRF/machine_id and personal handles.
+# Keep locally as reference; never commit.
+reference/
