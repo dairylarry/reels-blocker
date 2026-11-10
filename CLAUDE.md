@@ -51,3 +51,18 @@ See [docs/architecture.md](docs/architecture.md) §5.1. The hard one:
 **no rule may match on user-visible text.** The device language changes between
 English, Spanish and Mandarin, so every rule is built from hrefs, `role`
 attributes, document order, and element structure only.
+
+## Debugging
+
+The signed-in Simulator loop is the fast path (seconds, vs ~20 minutes through
+TestFlight) — see the README's "Debugging with a signed-in Simulator". Each
+rule has an A/B launch flag so causes can be isolated rather than guessed at;
+change one variable at a time.
+
+**If a bug survives two hypotheses, stop reasoning and add a measurement.**
+Every bug on 2026-11-09 was mis-diagnosed by argument and settled by one log
+line.
+
+**Assertions anchor on a settled state, never a transient one** (architecture
+§7.6.1). All five assertion retunes were the same mistake: a condition true at
+rest but briefly false while loading, scrolling or settling.

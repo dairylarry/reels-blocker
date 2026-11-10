@@ -141,6 +141,89 @@ crash): Xcode → Window → Organizer → Crashes, symbolicated automatically s
 Security → Analytics & Improvements → **Share With App Developers** on the
 phone.
 
+## Debugging with a signed-in Simulator
+
+**This is the fastest loop by a wide margin** and it is not obvious, so it is
+written down. A TestFlight round trip is ~20 minutes: archive, upload, process,
+install. The Simulator loop is seconds — rebuild, reproduce, read the log.
+
+It is also not just a toy: it reproduced two real bugs the device-only cycle
+could not, including the frame change that caused the keyboard to drop.
+
+```sh
+./scripts/run-sim.sh          # build, install, launch
+```
+
+Then **sign into Instagram in the Simulator window** and use it normally.
+
+**The software keyboard must be on**, or iOS never posts keyboard
+notifications and anything keyboard-related is untestable:
+Simulator → I/O → Keyboard → **Connect Hardware Keyboard, unchecked** (⇧⌘K).
+
+### Reading the diagnostics
+
+The app writes a full diagnostics dump to its container on every assertion
+report, in DEBUG builds:
+
+```sh
+DEV=1C200CE7-7173-49B3-AFA5-A315FE80B892     # or: xcrun simctl list devices
+C=$(xcrun simctl get_app_container $DEV com.barryyang.plainfeed data)
+sed -n '/CURRENT PAGE/,$p' "$C/Documents/diagnostics.txt"
+```
+
+Screenshots are often worth more than the log:
+
+```sh
+xcrun simctl io $DEV screenshot /tmp/shot.png
+```
+
+### A/B flags
+
+Each rule can be disabled at launch, which is how you isolate a cause instead
+of guessing at one:
+
+```sh
+xcrun simctl launch $DEV com.barryyang.plainfeed -PlainfeedNoR7 1
+```
+
+| Flag | Effect |
+| --- | --- |
+| `-PlainfeedNoR7 1` | R7 off — suggested feed cards not collapsed |
+| `-PlainfeedNoMono 1` | monochrome overlay off |
+| `-PlainfeedNoRefresh 1` | pull-to-refresh not attached |
+| `-PlainfeedRepro 1` | loads a synthetic non-scrollable page instead of Instagram (`Plainfeed/Debug/KeyboardRepro.swift`) |
+
+**Change one variable at a time.** Two of the wrong conclusions on 2026-11-09
+came from accepting a single clean run after changing something.
+
+### What the Simulator cannot do
+
+- **It will not raise a keyboard for a programmatic `focus()`** — iOS requires
+  a real gesture. A synthetic harness can prove the page is set up correctly
+  but cannot test keyboard behaviour. You need a human to tap.
+- `simctl` has no tap or scroll command, so anything gesture-driven needs
+  someone clicking in the Simulator window.
+
+### Clearing the session
+
+The Instagram session lives in the app's container on this Mac. To remove it,
+uninstall the app — that takes the cookie store and the diagnostics log with
+it:
+
+```sh
+xcrun simctl uninstall $DEV com.barryyang.plainfeed
+```
+
+### The method that actually worked
+
+Three bugs on 2026-11-09 were each chased by reasoning first, and the reasoning
+was wrong every time. What resolved them was **adding a measurement and
+reading it**: logging the web view's frame across a keyboard session, logging
+each article's geometry against the viewport. One log line ended each
+argument.
+
+If a bug survives two hypotheses, stop theorising and instrument it.
+
 ## Coming back to this after a long break
 
 - **The Apple Developer membership is $99/year.** If it lapses, TestFlight
