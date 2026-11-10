@@ -3,6 +3,43 @@
 Build number is shown in the launch banner, so a build on the phone can be
 identified without plugging it into Xcode.
 
+## v1.8 — 2026-11-09 — scope R7, fix a month of false alarms
+
+**Fixed**
+- **R7 ran on every page, including `/direct/**`,** violating the invariant in
+  RULES.md that no rule may hide anything under DMs that isn't a queued reel.
+  R4 enforced that by construction; R7 had no guard at all. It now skips
+  `/direct/**` and every auth route. Suspected cause of the keyboard dismissing
+  instantly in the new-DM recipient search — Instagram's own site does not do
+  this, so it was ours.
+- **R4's scope assertion was wrong and had cried wolf 27 times over a month.**
+  It claimed every `<video>` outside an `<article>` is a reel item, which is
+  simply false — a video someone sends you in a DM is exactly that and is not a
+  reel. Replaced with the claim that actually matters: no detected reel item
+  may enclose a feed card, which is how containment would start eating the feed.
+- **The R7 assertion silently never shipped in v1.7.** A string replacement
+  keyed on text that an earlier rename had already changed, and it had no
+  assertion guarding it, so it matched nothing and did nothing. Now present,
+  and its detail reports what R7 actually did on the page.
+
+**Added**
+- **Rule exceptions are reported** instead of swallowed. Every rule ran inside
+  `catch (e) {}`, so a rule throwing on every pass was completely invisible.
+  Logged once per rule per page, so a repeated throw can't flood the log.
+- **Focus-loss detection.** If the element you're typing into ends up inside
+  something a rule hid, that is logged explicitly — "a rule hid the focused
+  input, this drops the keyboard". Narrow by design: it only fires when our own
+  marker is on an ancestor, so Instagram moving focus itself can't trigger it.
+- **Pull-to-refresh reloads are logged**, since an unexpected reload is
+  indistinguishable from a bug at the UI level — it drops the keyboard and
+  resets page state.
+- **Events record the build that produced them.** The log survives upgrades and
+  spans weeks; without it an old entry can't be tied to the code that wrote it.
+- `./scripts/check-js.sh` — extracts the JavaScript embedded in the Swift
+  string, resolves the interpolations and runs `node --check`. Swift only
+  validates that literal's *escapes*, never its JavaScript, so a malformed rule
+  would compile and then silently do nothing on the device.
+
 ## v1.7 — 2026-10-10 — suggested feed cards hidden (R7)
 
 **Added**
@@ -108,6 +145,43 @@ identified without plugging it into Xcode.
 - Anonymised real account handles and reel shortcodes in tracked docs. The
   selector analysis was quoting 8 accounts from the home feed, which revealed
   who the user follows; placeholders carry the same analytical value.
+
+## v1.8 — 2026-11-09 — scope R7, fix a month of false alarms
+
+**Fixed**
+- **R7 ran on every page, including `/direct/**`,** violating the invariant in
+  RULES.md that no rule may hide anything under DMs that isn't a queued reel.
+  R4 enforced that by construction; R7 had no guard at all. It now skips
+  `/direct/**` and every auth route. Suspected cause of the keyboard dismissing
+  instantly in the new-DM recipient search — Instagram's own site does not do
+  this, so it was ours.
+- **R4's scope assertion was wrong and had cried wolf 27 times over a month.**
+  It claimed every `<video>` outside an `<article>` is a reel item, which is
+  simply false — a video someone sends you in a DM is exactly that and is not a
+  reel. Replaced with the claim that actually matters: no detected reel item
+  may enclose a feed card, which is how containment would start eating the feed.
+- **The R7 assertion silently never shipped in v1.7.** A string replacement
+  keyed on text that an earlier rename had already changed, and it had no
+  assertion guarding it, so it matched nothing and did nothing. Now present,
+  and its detail reports what R7 actually did on the page.
+
+**Added**
+- **Rule exceptions are reported** instead of swallowed. Every rule ran inside
+  `catch (e) {}`, so a rule throwing on every pass was completely invisible.
+  Logged once per rule per page, so a repeated throw can't flood the log.
+- **Focus-loss detection.** If the element you're typing into ends up inside
+  something a rule hid, that is logged explicitly — "a rule hid the focused
+  input, this drops the keyboard". Narrow by design: it only fires when our own
+  marker is on an ancestor, so Instagram moving focus itself can't trigger it.
+- **Pull-to-refresh reloads are logged**, since an unexpected reload is
+  indistinguishable from a bug at the UI level — it drops the keyboard and
+  resets page state.
+- **Events record the build that produced them.** The log survives upgrades and
+  spans weeks; without it an old entry can't be tied to the code that wrote it.
+- `./scripts/check-js.sh` — extracts the JavaScript embedded in the Swift
+  string, resolves the interpolations and runs `node --check`. Swift only
+  validates that literal's *escapes*, never its JavaScript, so a malformed rule
+  would compile and then silently do nothing on the device.
 
 ## v1.7 — 2026-10-10 — suggested feed cards hidden (R7)
 

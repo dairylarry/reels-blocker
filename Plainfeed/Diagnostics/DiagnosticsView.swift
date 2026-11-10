@@ -109,6 +109,11 @@ struct DiagnosticsView: View {
                     .foregroundStyle(.secondary)
                 Text(e.source)
                     .font(.system(.caption2, design: .monospaced).bold())
+                if let b = e.build {
+                    Text(b)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                }
             }
             Text(e.message).font(.caption)
         }

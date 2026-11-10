@@ -145,6 +145,14 @@ phone.
 
 - **The Apple Developer membership is $99/year.** If it lapses, TestFlight
   builds stop working and you cannot upload. Renew before expiry.
+- **Apple may be waiting on a new Program License Agreement.** If an upload
+  fails with `Unable to process request - PLA Update available`, often followed
+  by `No signing certificate "iOS Distribution" found`, the second error is a
+  symptom of the first — Apple refuses to issue certificates until the
+  agreement is accepted. The Account Holder accepts it at
+  developer.apple.com/account (banner at the top) or App Store Connect →
+  Business → Agreements. The archive survives, so only the export needs
+  re-running afterwards.
 - **Signing certificates last about a year.** If archiving fails with a signing
   error, Xcode → Settings → Accounts → Manage Certificates usually fixes it, and
   `-allowProvisioningUpdates` (already in the script) lets it regenerate.

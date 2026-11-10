@@ -161,23 +161,30 @@ enum BlockingScript {
           }
         } catch (e) { add('R3', 'nav bar holds /reels/ link', 'fail', 'threw: ' + e); }
 
-        // R4 scope — anchor: videos outside any <article>.
-        //            claim: every one of them is a reel item.
-        // This is the premise that keeps containment away from the feed.
+        // R4 scope — anchor: at least one reel item detected.
+        //            claim: no reel item encloses a feed card.
+        //
+        // The previous version asserted that EVERY video outside an <article>
+        // is a reel item. That premise was simply false — a video someone
+        // sends you in a DM is outside any article and is not a reel — so it
+        // failed on normal use 27 times over a month. What actually matters is
+        // narrower: containment must never grab something containing feed
+        // cards, because that is how it would start eating the feed.
         try {
-          var loose = [], all = document.querySelectorAll('video');
-          for (var i = 0; i < all.length; i++) {
-            if (!all[i].closest('article')) loose.push(all[i]);
+          var items = [], vids = document.querySelectorAll('video');
+          for (var i = 0; i < vids.length; i++) {
+            var ri = reelItem(vids[i]);
+            if (ri && items.indexOf(ri) === -1) items.push(ri);
           }
-          if (!loose.length) {
-            add('R4', 'loose videos are reel items', 'skipped', 'no videos outside <article>');
+          if (!items.length) {
+            add('R4', 'reel items exclude feed cards', 'skipped', 'no reel items on this page');
           } else {
-            var unknown = loose.filter(function (v) { return !reelItem(v); }).length;
-            add('R4', 'loose videos are reel items', unknown === 0 ? 'pass' : 'fail',
-                unknown === 0 ? loose.length + ' checked'
-                              : unknown + ' of ' + loose.length + ' lack an audio-link ancestor');
+            var enclosing = items.filter(function (it) { return !!it.querySelector('article'); }).length;
+            add('R4', 'reel items exclude feed cards', enclosing === 0 ? 'pass' : 'fail',
+                enclosing === 0 ? items.length + ' item(s) checked'
+                                : enclosing + ' reel item(s) enclose a feed card — containment could hide real posts');
           }
-        } catch (e) { add('R4', 'loose videos are reel items', 'fail', 'threw: ' + e); }
+        } catch (e) { add('R4', 'reel items exclude feed cards', 'fail', 'threw: ' + e); }
 
         // R4 effect — anchor: 2+ reel items present.
         //             claim: exactly one survives containment.
@@ -221,6 +228,29 @@ enum BlockingScript {
               shown === 0 ? '' : shown + ' visible — R3 is not hiding the tab');
         } catch (e) { add('screen', 'no Reels entry point visible', 'fail', 'threw: ' + e); }
 
+        // R7 — anchor: feed cards present on a route where DOM rules run.
+        //      claim: they expose a [role=presentation] media block, which is
+        //      how the rule locates the end of a card's header.
+        // Detail carries what R7 actually did, so its behaviour is visible.
+        try {
+          if (!domRulesAllowedHere()) {
+            add('R7', 'feed cards expose a media marker', 'skipped', 'DOM rules off on this route');
+          } else {
+            var arts = document.querySelectorAll('article');
+            if (!arts.length) {
+              add('R7', 'feed cards expose a media marker', 'skipped', 'no feed cards — ' + suggestedState);
+            } else {
+              var withMedia = 0;
+              for (var m = 0; m < arts.length; m++) {
+                if (arts[m].querySelector('[role="presentation"]')) withMedia++;
+              }
+              add('R7', 'feed cards expose a media marker', withMedia > 0 ? 'pass' : 'fail',
+                  withMedia > 0 ? withMedia + ' of ' + arts.length + ' — ' + suggestedState
+                                : 'no card exposes [role=presentation] — rule cannot locate headers');
+            }
+          }
+        } catch (e) { add('R7', 'feed cards expose a media marker', 'fail', 'threw: ' + e); }
+
         return out;
       }
 
@@ -256,6 +286,21 @@ enum BlockingScript {
       // chevron <svg>. Leaving ads alone is deliberate (§7.10).
       var OVERMATCH_RATIO = 0.7;
 
+      // RULES.md invariant: no rule may hide anything under /direct/** that is
+      // not a queued reel. R4 enforces that by construction; R7 needs an
+      // explicit guard, because it matches on <article> and would happily hide
+      // one on the new-message screen — taking the focused recipient search
+      // field with it, which drops the keyboard.
+      var NO_DOM_RULES = new RegExp('^/(direct|accounts|challenge|two_factor|oauth)/');
+
+      function domRulesAllowedHere() {
+        try { return !NO_DOM_RULES.test(location.pathname); } catch (e) { return false; }
+      }
+
+      // Last R7 outcome, surfaced in its assertion so the rule's behaviour is
+      // visible without flooding the event log on every mutation.
+      var suggestedState = 'not run';
+
       function isInjected(article) {
         var media = article.querySelector('[role="presentation"]');
         if (!media) return false;                  // can't locate the header
@@ -273,8 +318,9 @@ enum BlockingScript {
       }
 
       function hideSuggested() {
+        if (!domRulesAllowedHere()) { suggestedState = 'skipped on this route'; return; }
         var articles = document.querySelectorAll('article');
-        if (!articles.length) return;
+        if (!articles.length) { suggestedState = 'no feed cards'; return; }
         var matches = [];
         for (var i = 0; i < articles.length; i++) {
           if (isInjected(articles[i])) matches.push(articles[i]);
@@ -282,11 +328,57 @@ enum BlockingScript {
         // Over-match guard: hiding most of the feed means the discriminator
         // broke, not that the feed is all suggestions. Report, don't hide.
         if (articles.length >= 3 && matches.length / articles.length > OVERMATCH_RATIO) {
+          suggestedState = 'over-match guard tripped: ' + matches.length + ' of ' + articles.length;
           send({ events: [{ source: 'R7', message: 'over-match guard: ' + matches.length +
                  ' of ' + articles.length + ' feed cards matched — not hiding' }] });
           return;
         }
         matches.forEach(function (a) { a.setAttribute('data-plainfeed-hidden', '1'); });
+        suggestedState = 'hid ' + matches.length + ' of ' + articles.length;
+      }
+
+      // Rule exceptions used to be swallowed by empty catch blocks, so a rule
+      // that threw on every pass was completely invisible. Report each one,
+      // but only the first time per rule per page — otherwise a rule throwing
+      // on every mutation would fill the 50-entry log in seconds.
+      var reportedThrows = {};
+
+      function runRule(name, fn) {
+        try {
+          fn();
+        } catch (e) {
+          if (!reportedThrows[name]) {
+            reportedThrows[name] = true;
+            send({ events: [{ source: name, message: 'threw: ' + e }] });
+          }
+        }
+      }
+
+      // Focus-loss detection. If the element the user is typing into ends up
+      // inside something we hid, we caused the keyboard to drop. This is
+      // deliberately narrow — it only fires when OUR marker is on an ancestor,
+      // so Instagram moving focus on its own can never trigger it.
+      function focusedEditable() {
+        var el = document.activeElement;
+        if (!el) return null;
+        var tag = el.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable) return el;
+        return null;
+      }
+
+      function checkFocusStolen(before) {
+        if (!before) return;
+        try {
+          if (before.closest('[data-plainfeed-hidden]')) {
+            send({ events: [{ source: 'focus', message:
+              'a rule hid the focused ' + before.tagName.toLowerCase() +
+              ' on ' + location.pathname + ' — this drops the keyboard' }] });
+          } else if (!before.isConnected) {
+            send({ events: [{ source: 'focus', message:
+              'focused ' + before.tagName.toLowerCase() + ' left the DOM on ' +
+              location.pathname + ' (not hidden by us)' }] });
+          }
+        } catch (e) {}
       }
 
       var pending = null;
@@ -294,20 +386,20 @@ enum BlockingScript {
         if (pending) return;
         pending = setTimeout(function () {
           pending = null;
-          // Isolated: a throw in one rule must not stop the others. Without
-          // this, one exception kills every dynamic rule for the page's life.
-          try { mono(); } catch (e) {}      // re-add if IG replaces <body>
-          try { containReels(); } catch (e) {}
-          try { hideSuggested(); } catch (e) {}
-          try { report(); } catch (e) {}
+          var focusBefore = focusedEditable();
+          runRule('mono', mono);            // re-add if IG replaces <body>
+          runRule('R4', containReels);
+          runRule('R7', hideSuggested);
+          checkFocusStolen(focusBefore);
+          runRule('report', report);
         }, 150);
       }
 
       function start() {
-        try { mono(); } catch (e) {}
-        try { containReels(); } catch (e) {}
-        try { hideSuggested(); } catch (e) {}
-        try { report(); } catch (e) {}
+        runRule('mono', mono);
+        runRule('R4', containReels);
+        runRule('R7', hideSuggested);
+        runRule('report', report);
         new MutationObserver(schedule).observe(document.documentElement, {
           childList: true, subtree: true
         });

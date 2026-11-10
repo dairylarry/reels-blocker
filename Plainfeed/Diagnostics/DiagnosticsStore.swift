@@ -4,8 +4,11 @@ import SwiftUI
 struct DiagEvent: Codable, Identifiable {
     var id = UUID()
     var at = Date()
-    var source: String          // "R2", "R4", "app"
+    var source: String          // "R2", "R4", "R7", "focus", "app"
     var message: String
+    /// Which build produced this. The log survives upgrades and spans weeks,
+    /// so without it an old entry can't be tied to the code that wrote it.
+    var build: String?
 }
 
 struct AssertionResult: Codable, Identifiable {
@@ -40,7 +43,7 @@ final class DiagnosticsStore: ObservableObject {
 
     /// Persisted, so a problem at 9am is still visible at 9pm.
     func log(_ source: String, _ message: String) {
-        let event = DiagEvent(source: source, message: message)
+        let event = DiagEvent(source: source, message: message, build: AppVersion.build)
         events.insert(event, at: 0)
         if events.count > Self.maxEvents { events.removeLast(events.count - Self.maxEvents) }
         save()
@@ -126,7 +129,8 @@ final class DiagnosticsStore: ObservableObject {
             out.append("  (none)")
         } else {
             for e in events {
-                out.append("  \(stamp.string(from: e.at))  \(e.source)  \(e.message)")
+                let b = e.build.map { "(\($0)) " } ?? ""
+                out.append("  \(stamp.string(from: e.at))  \(b)\(e.source)  \(e.message)")
             }
         }
         return out.joined(separator: "\n")

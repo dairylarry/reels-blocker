@@ -91,6 +91,9 @@ final class WebViewStore: NSObject, ObservableObject {
     }
 
     @objc private func handleRefresh(_ sender: UIRefreshControl) {
+        // Logged because an unexpected reload is indistinguishable from a bug
+        // at the UI level: it drops the keyboard and resets page state.
+        diagnostics.log("app", "pull-to-refresh reloaded \(webView.url?.path ?? "—")")
         webView.reload()
     }
 

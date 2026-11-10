@@ -6,10 +6,11 @@ settings that apply to everything equally (the monochrome filter, tap-to-play,
 opening to the inbox) are app behaviour, not rules, and live in
 [../README.md](../README.md).
 
-**Last updated:** 2026-10-10 · v1.7 · 6 rules
+**Last updated:** 2026-11-09 · v1.8 · 6 rules
 
 | Date | Version | Change |
 | --- | --- | --- |
+| 2026-11-09 | 1.8 | **R7 scoped** — no longer runs on `/direct/**` or auth routes |
 | 2026-10-10 | 1.7 | **R7** suggested feed cards hidden |
 | 2026-10-10 | 1.4 | no rule changes — premise assertions added for R2, R3, R4 |
 | 2026-10-10 | 1.3 | no rule changes |
@@ -42,6 +43,11 @@ prefix would block every reel sent to you in a DM.
 | R3 | `a[href="/reels/"]` | Reels tab never paints |
 | R4 | queued reels in the reel viewer | removed, leaving only the one you opened |
 | R7 | algorithmically injected feed cards | removed from the home feed |
+
+**R7 never runs on `/direct/**`, `/accounts/**`, `/challenge/**`,
+`/two_factor/**` or `/oauth/**`.** It matches on `<article>`, and an unscoped
+version would happily hide one on the new-message screen — taking the focused
+recipient search field with it and dropping the keyboard.
 
 R4 identifies a reel as a `<video>` **not** inside an `<article>`, whose nearest
 ancestor contains an `a[href^="/reels/audio/"]`. With two or more present, every
