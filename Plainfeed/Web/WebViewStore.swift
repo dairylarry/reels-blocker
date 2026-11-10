@@ -50,11 +50,19 @@ final class WebViewStore: NSObject, ObservableObject {
         webView.scrollView.backgroundColor = .systemBackground
 
         attachRefreshControl()
+        observeKeyboard()
+        observeFrame()
         observe()
     }
 
     func loadStart() {
         guard webView.url == nil else { return }
+        #if DEBUG
+        if KeyboardRepro.isEnabled {
+            webView.loadHTMLString(KeyboardRepro.html, baseURL: KeyboardRepro.baseURL)
+            return
+        }
+        #endif
         webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
             let signedIn = cookies.contains {
                 $0.name == Site.sessionCookieName && $0.domain.contains("instagram.com")
@@ -68,6 +76,68 @@ final class WebViewStore: NSObject, ObservableObject {
 
     func go(to tab: Site.Tab) {
         webView.load(URLRequest(url: tab.url))
+    }
+
+    // MARK: - Keyboard instrumentation
+
+    /// The native half of the focus question. If the keyboard hides within a
+    /// moment of showing *without* the page reporting a blur, the web view
+    /// resigned first responder on its own — which points at a frame change,
+    /// not at anything in the DOM.
+    private var frameObservation: NSKeyValueObservation?
+    private var keyboardShownAt: Date?
+    private var frameAtKeyboardShow: CGRect = .zero
+
+    /// Log every frame change with a timestamp, not just the ones bracketing a
+    /// keyboard session. The remaining failure loses focus in ~215ms, before
+    /// `keyboardWillShow` fires, so the keyboard-bracketed logging can't see
+    /// what moved.
+    private var lastLoggedFrame: CGRect = .zero
+
+    private func observeFrame() {
+        frameObservation = webView.observe(\.frame, options: [.new]) { [weak self] wv, _ in
+            Task { @MainActor in
+                guard let self else { return }
+                let now = wv.frame
+                guard now != self.lastLoggedFrame, now != .zero else { return }
+                let was = self.lastLoggedFrame
+                self.lastLoggedFrame = now
+                guard was != .zero else { return }       // skip initial layout
+                self.diagnostics.log("frame", "\(was.size) -> \(now.size) on \(wv.url?.path ?? "—")")
+            }
+        }
+    }
+
+    private func observeKeyboard() {
+        let centre = NotificationCenter.default
+        centre.addObserver(self, selector: #selector(keyboardWillShow),
+                           name: UIResponder.keyboardWillShowNotification, object: nil)
+        centre.addObserver(self, selector: #selector(keyboardWillHide),
+                           name: UIResponder.keyboardWillHideNotification, object: nil)
+    }
+
+    @objc private func keyboardWillShow() {
+        keyboardShownAt = Date()
+        frameAtKeyboardShow = webView.frame
+    }
+
+    @objc private func keyboardWillHide() {
+        guard let shown = keyboardShownAt else { return }
+        keyboardShownAt = nil
+        let held = Date().timeIntervalSince(shown)
+        let before = frameAtKeyboardShow
+        let now = webView.frame
+        let resized = before != now
+        // Every keyboard session is logged, not just short ones. Logging only
+        // suspicious dismissals made "no event" ambiguous between "fixed" and
+        // "not tested yet".
+        diagnostics.log("keyboard", String(
+            format: "%@ after %.0fms on %@ — frame %@",
+            held < 2.0 ? "DISMISSED EARLY" : "closed",
+            held * 1000,
+            webView.url?.path ?? "—",
+            resized ? "CHANGED \(before.size) -> \(now.size)" : "unchanged \(now.size)"
+        ))
     }
 
     // MARK: - Diagnostics

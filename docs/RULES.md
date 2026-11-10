@@ -6,10 +6,11 @@ settings that apply to everything equally (the monochrome filter, tap-to-play,
 opening to the inbox) are app behaviour, not rules, and live in
 [../README.md](../README.md).
 
-**Last updated:** 2026-11-09 · v1.8 · 6 rules
+**Last updated:** 2026-11-09 · v1.9 · 6 rules
 
 | Date | Version | Change |
 | --- | --- | --- |
+| 2026-11-09 | 1.9 | no rule changes — R7 verified hiding a real injected card |
 | 2026-11-09 | 1.8 | **R7 scoped** — no longer runs on `/direct/**` or auth routes |
 | 2026-10-10 | 1.7 | **R7** suggested feed cards hidden |
 | 2026-10-10 | 1.4 | no rule changes — premise assertions added for R2, R3, R4 |

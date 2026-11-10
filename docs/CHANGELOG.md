@@ -3,6 +3,51 @@
 Build number is shown in the launch banner, so a build on the phone can be
 identified without plugging it into Xcode.
 
+## v1.9 — 2026-11-09 — keyboard fix, focus diagnostics
+
+**Fixed**
+- **The keyboard dropping in the DM recipient search.** Root cause was mine,
+  introduced in v1.5: the loading `ProgressView` sat *below* the banner in a
+  `VStack` inside `safeAreaInset`, so when a page finished loading the inset
+  shrank by 34pt and the web view's frame grew. A frame change while an input
+  is focused makes WebKit resign first responder, dropping the keyboard.
+
+  It only bit on the new-message screen because that is the one place you tap a
+  text field *while a page is still loading* — in a DM thread you type long
+  after the load finished. Caught by logging the web view's frame across a
+  keyboard session: `dismissed after 1694ms — frame CHANGED (402, 751) ->
+  (402, 785)`. The progress bar is now an overlay on the banner, so the inset's
+  height is constant.
+- Opted out of SwiftUI keyboard avoidance (`.ignoresSafeArea(.keyboard)`).
+  `WKWebView` manages its own keyboard insets; SwiftUI resizing it too is
+  redundant and can cause the same class of frame change.
+- **R7's assertion cried wolf twice more.** It now runs only on the home feed
+  (`<article>` appears on other pages, including the logged-out landing page)
+  and only once the page has finished loading (mid-load a feed has cards whose
+  media blocks have not rendered).
+
+**Added**
+- Focus instrumentation: a blur within 2s of focus is logged with its cause —
+  element removed, hidden by a rule, zero-sized, URL changed, or focus moved
+  elsewhere. This is what identified the remaining failure as native rather
+  than DOM-side.
+- Every keyboard session is logged, not just suspicious ones. Logging only
+  short dismissals made "no event" ambiguous between "fixed" and "not tested".
+- Web view frame changes are logged with timestamps.
+- R7's assertion detail now reports what the rule did — e.g. `4 of 4 — hid 1
+  of 4`.
+- `Plainfeed/Debug/KeyboardRepro.swift`, a DEBUG-only harness that loads a
+  short non-scrollable page under the real base URL. It proved the page-level
+  setup was sound, though it could not raise a keyboard — iOS requires a real
+  gesture for that, which is why signing into the Simulator was what finally
+  cracked this.
+
+**Verified on a signed-in Simulator**
+- `R3 nav bar holds /reels/ link` — PASS
+- `R7 feed cards expose a media marker — 4 of 4 — hid 1 of 4` — the
+  suggested-post rule hiding a real injected card
+- `screen no Reels entry point visible` — PASS
+
 ## v1.8 — 2026-11-09 — scope R7, fix a month of false alarms
 
 **Fixed**
@@ -145,6 +190,51 @@ identified without plugging it into Xcode.
 - Anonymised real account handles and reel shortcodes in tracked docs. The
   selector analysis was quoting 8 accounts from the home feed, which revealed
   who the user follows; placeholders carry the same analytical value.
+
+## v1.9 — 2026-11-09 — keyboard fix, focus diagnostics
+
+**Fixed**
+- **The keyboard dropping in the DM recipient search.** Root cause was mine,
+  introduced in v1.5: the loading `ProgressView` sat *below* the banner in a
+  `VStack` inside `safeAreaInset`, so when a page finished loading the inset
+  shrank by 34pt and the web view's frame grew. A frame change while an input
+  is focused makes WebKit resign first responder, dropping the keyboard.
+
+  It only bit on the new-message screen because that is the one place you tap a
+  text field *while a page is still loading* — in a DM thread you type long
+  after the load finished. Caught by logging the web view's frame across a
+  keyboard session: `dismissed after 1694ms — frame CHANGED (402, 751) ->
+  (402, 785)`. The progress bar is now an overlay on the banner, so the inset's
+  height is constant.
+- Opted out of SwiftUI keyboard avoidance (`.ignoresSafeArea(.keyboard)`).
+  `WKWebView` manages its own keyboard insets; SwiftUI resizing it too is
+  redundant and can cause the same class of frame change.
+- **R7's assertion cried wolf twice more.** It now runs only on the home feed
+  (`<article>` appears on other pages, including the logged-out landing page)
+  and only once the page has finished loading (mid-load a feed has cards whose
+  media blocks have not rendered).
+
+**Added**
+- Focus instrumentation: a blur within 2s of focus is logged with its cause —
+  element removed, hidden by a rule, zero-sized, URL changed, or focus moved
+  elsewhere. This is what identified the remaining failure as native rather
+  than DOM-side.
+- Every keyboard session is logged, not just suspicious ones. Logging only
+  short dismissals made "no event" ambiguous between "fixed" and "not tested".
+- Web view frame changes are logged with timestamps.
+- R7's assertion detail now reports what the rule did — e.g. `4 of 4 — hid 1
+  of 4`.
+- `Plainfeed/Debug/KeyboardRepro.swift`, a DEBUG-only harness that loads a
+  short non-scrollable page under the real base URL. It proved the page-level
+  setup was sound, though it could not raise a keyboard — iOS requires a real
+  gesture for that, which is why signing into the Simulator was what finally
+  cracked this.
+
+**Verified on a signed-in Simulator**
+- `R3 nav bar holds /reels/ link` — PASS
+- `R7 feed cards expose a media marker — 4 of 4 — hid 1 of 4` — the
+  suggested-post rule hiding a real injected card
+- `screen no Reels entry point visible` — PASS
 
 ## v1.8 — 2026-11-09 — scope R7, fix a month of false alarms
 

@@ -235,9 +235,20 @@ enum BlockingScript {
         try {
           if (!domRulesAllowedHere()) {
             add('R7', 'feed cards expose a media marker', 'skipped', 'DOM rules off on this route');
+          } else if (location.pathname !== '/') {
+            // The premise only matters on the home feed. <article> appears on
+            // other pages — the logged-out landing page has one with no
+            // [role=presentation] — and asserting there produced a false
+            // alarm.
+            add('R7', 'feed cards expose a media marker', 'skipped', 'not the home feed');
           } else {
             var arts = document.querySelectorAll('article');
-            if (!arts.length) {
+            if (document.readyState !== 'complete') {
+              // Mid-load the feed has <article> elements whose media blocks
+              // have not rendered yet. Asserting then produced a transient
+              // false alarm.
+              add('R7', 'feed cards expose a media marker', 'skipped', 'page still loading');
+            } else if (!arts.length) {
               add('R7', 'feed cards expose a media marker', 'skipped', 'no feed cards — ' + suggestedState);
             } else {
               var withMedia = 0;
@@ -380,6 +391,51 @@ enum BlockingScript {
           }
         } catch (e) {}
       }
+
+      // --- focus instrumentation --------------------------------------
+      // Diagnosing a keyboard that appears and immediately dismisses. The
+      // question this answers: does the PAGE lose focus (a blur fires), or
+      // does the keyboard go while focus is retained? The first means
+      // something in the DOM dropped it; the second means the native side
+      // resigned first responder and the page never knew.
+      //
+      // Only blurs within 2s of focus are logged — the immediate-dismissal
+      // signature — so normal typing can't fill the log.
+      var focusAt = 0, focusPath = '', focusTag = '';
+
+      function isEditable(el) {
+        if (!el) return false;
+        return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
+      }
+
+      document.addEventListener('focusin', function (e) {
+        if (!isEditable(e.target)) return;
+        focusAt = Date.now();
+        focusPath = location.pathname;
+        focusTag = e.target.tagName.toLowerCase();
+      }, true);
+
+      document.addEventListener('focusout', function (e) {
+        if (!isEditable(e.target) || !focusAt) return;
+        var held = Date.now() - focusAt;
+        focusAt = 0;
+        if (held > 2000) return;                 // ordinary end of typing
+        var el = e.target;
+        var why = [];
+        try {
+          if (!el.isConnected) why.push('left the DOM');
+          if (el.closest && el.closest('[data-plainfeed-hidden]')) why.push('inside something we hid');
+          var r = el.getBoundingClientRect();
+          if (!r.width || !r.height) why.push('zero-sized');
+          if (location.pathname !== focusPath) why.push('url changed to ' + location.pathname);
+          if (document.activeElement && document.activeElement !== el) {
+            why.push('focus moved to ' + document.activeElement.tagName.toLowerCase());
+          }
+        } catch (err) { why.push('probe threw: ' + err); }
+        send({ events: [{ source: 'focus', message:
+          'BLUR after ' + held + 'ms on ' + focusPath + ' (' + focusTag + ') — ' +
+          (why.length ? why.join('; ') : 'no DOM cause found; element still focusable') }] });
+      }, true);
 
       var pending = null;
       function schedule() {
