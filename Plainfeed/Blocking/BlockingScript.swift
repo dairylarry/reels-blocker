@@ -9,13 +9,62 @@ enum BlockingScript {
     /// Injected at documentStart so the CSS applies before first paint and the
     /// history hooks are installed before Instagram's router runs.
     static func userScript() -> WKUserScript {
-        WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true)
+        var prelude = ""
+        if UserDefaults.standard.bool(forKey: "PlainfeedNoMono") {
+            prelude += "window.__plainfeedNoMono = true;\n"
+        }
+        if UserDefaults.standard.bool(forKey: "PlainfeedNoR7") {
+            prelude += "window.__plainfeedNoR7 = true;\n"
+        }
+        return WKUserScript(source: prelude + source,
+                            injectionTime: .atDocumentStart, forMainFrameOnly: true)
     }
 
     /// Href-based only — identical in every language (§5.1).
     private static let css = """
     a[href="/reels/"], a[href="/reels"] { display: none !important; }
+
+    /* Two hide mechanisms, deliberately different.
+
+       COLLAPSED — suppress without stopping the feed. Instagram's load-more
+       trigger depends on cards participating in layout and the intersection
+       tree, so `display: none` on a card severs it and the feed dies early.
+       A 1px sliver stays in the flow and keeps the observer alive. */
+    [data-plainfeed-collapsed] {
+      height: 1px !important;
+      min-height: 0 !important;
+      overflow: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
+    /* REMOVED — stop the feed on purpose. Used past the tranche limit, where
+       severing the loader is exactly the intent. */
     [data-plainfeed-hidden] { display: none !important; }
+
+    /* Centred overlay rather than a strip at the bottom: this lands where
+       the eye already is when scrolling stops, and a thin band above the nav
+       bar was easy to miss. Fades out on its own so it never sits on top of
+       the last post. */
+    #plainfeed-end {
+      position: fixed !important;
+      left: 0; right: 0;
+      top: 42%;
+      transform: translateY(-50%);
+      padding: 26px 20px;
+      text-align: center;
+      font: 600 21px/1.35 -apple-system, system-ui, sans-serif;
+      letter-spacing: 0.2px;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.58);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+      z-index: 2147483646;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 220ms ease;
+    }
+    #plainfeed-end[data-show="1"] { opacity: 1; }
 
     /* 40% monochrome. A display setting, not a blocking rule — it decides
        nothing, it tints everything equally.
@@ -46,6 +95,7 @@ enum BlockingScript {
       // --- monochrome overlay (display setting, not a rule) ------------
       // Appended to <body>, so it waits for one to exist.
       function mono() {
+        if (window.__plainfeedNoMono) return;   // A/B switch for diagnosis
         if (document.getElementById('plainfeed-mono')) return;
         if (!document.body) return;
         var layer = document.createElement('div');
@@ -198,7 +248,7 @@ enum BlockingScript {
             add('R4', 'one reel survives containment', 'skipped', items.length + ' reel item(s)');
           } else {
             var visible = items.filter(function (it) {
-              return !it.closest('[data-plainfeed-hidden]');
+              return !it.closest('[data-plainfeed-hidden], [data-plainfeed-collapsed]');
             }).length;
             add('R4', 'one reel survives containment', visible === 1 ? 'pass' : 'fail',
                 visible === 1 ? 'of ' + items.length
@@ -261,6 +311,22 @@ enum BlockingScript {
             }
           }
         } catch (e) { add('R7', 'feed cards expose a media marker', 'fail', 'threw: ' + e); }
+
+        // R8 — anchor: on the home feed.
+        //      claim: scroll position is at or below the cap.
+        try {
+          if (!onFeed()) {
+            add('R8', 'feed within scroll cap', 'skipped', 'not the home feed');
+          } else {
+            // Once capped, the mechanism has engaged and momentum can carry
+            // scrollY briefly past the limit before the clamp pulls it back.
+            // That overshoot is not a failure; only an UNcapped overrun is.
+            var y = Math.round(window.scrollY);
+            var ok = capped || y <= SCROLL_LIMIT;
+            add('R8', 'feed within scroll cap', ok ? 'pass' : 'fail',
+                'scrollY=' + y + ' of ' + SCROLL_LIMIT + (capped ? ' — capped' : ''));
+          }
+        } catch (e) { add('R8', 'feed within scroll cap', 'fail', 'threw: ' + e); }
 
         return out;
       }
@@ -329,6 +395,7 @@ enum BlockingScript {
       }
 
       function hideSuggested() {
+        if (window.__plainfeedNoR7) { suggestedState = 'disabled for diagnosis'; return; }
         if (!domRulesAllowedHere()) { suggestedState = 'skipped on this route'; return; }
         var articles = document.querySelectorAll('article');
         if (!articles.length) { suggestedState = 'no feed cards'; return; }
@@ -344,7 +411,7 @@ enum BlockingScript {
                  ' of ' + articles.length + ' feed cards matched — not hiding' }] });
           return;
         }
-        matches.forEach(function (a) { a.setAttribute('data-plainfeed-hidden', '1'); });
+        matches.forEach(function (a) { a.setAttribute('data-plainfeed-collapsed', '1'); });
         suggestedState = 'hid ' + matches.length + ' of ' + articles.length;
       }
 
@@ -436,6 +503,116 @@ enum BlockingScript {
           'BLUR after ' + held + 'ms on ' + focusPath + ' (' + focusTag + ') — ' +
           (why.length ? why.join('; ') : 'no DOM cause found; element still focusable') }] });
       }, true);
+
+      // --- blank-feed diagnosis ----------------------------------------
+      // Logs ONLY the problem state: scrolled down with no feed card
+      // intersecting the viewport. Self-limiting, so it cannot flood the log.
+      // Distinguishes "cards are here but not painting" from "the page is tall
+      // and genuinely empty at this offset".
+      var lastBlankLog = 0;
+
+      function checkBlankViewport() {
+        try {
+          var y = window.scrollY, h = window.innerHeight;
+          if (y < h) return;                       // near the top, not the case
+          var arts = document.querySelectorAll('article');
+          if (!arts.length) return;
+          var inView = 0, tops = [], hidden = 0;
+          for (var i = 0; i < arts.length; i++) {
+            var r = arts[i].getBoundingClientRect();
+            tops.push(Math.round(r.top + y));
+            if (r.bottom > 0 && r.top < h) inView++;
+            if (arts[i].hasAttribute('data-plainfeed-hidden')) hidden++;
+          }
+          if (inView > 0) return;                  // something is on screen
+          // Reaching the end of a feed that is still loading is normal and
+          // was firing constantly. A real void is a large reserved gap below
+          // the last card — more than two viewports of nothing.
+          var maxBottom = 0;
+          for (var j = 0; j < arts.length; j++) {
+            var rb = arts[j].getBoundingClientRect();
+            if (rb.height > 0) maxBottom = Math.max(maxBottom, rb.bottom + y);
+          }
+          if (document.documentElement.scrollHeight - maxBottom < h * 2) return;
+          var now = Date.now();
+          if (now - lastBlankLog < 4000) return;
+          lastBlankLog = now;
+          tops.sort(function (a, b) { return a - b; });
+          send({ events: [{ source: 'blank', message:
+            'no card in viewport — scrollY=' + Math.round(y) +
+            ' innerH=' + h +
+            ' scrollH=' + document.documentElement.scrollHeight +
+            ' cards=' + arts.length + ' (hidden ' + hidden + ')' +
+            ' cardTops=[' + tops.slice(0, 3).join(',') + ' … ' + tops.slice(-2).join(',') + ']' }] });
+        } catch (e) {}
+      }
+
+      var scrollTimer = null;
+      window.addEventListener('scroll', function () {
+        if (scrollTimer) return;
+        scrollTimer = setTimeout(function () {
+          scrollTimer = null;
+          checkBlankViewport();
+        }, 600);
+      }, { passive: true });
+
+      // --- R8: the feed is finite --------------------------------------
+      // Capped by SCROLL DEPTH, not by counting cards.
+      //
+      // Instagram virtualises the feed: it keeps a sliding window of ~9
+      // <article> elements in the DOM and recycles them, so counting cards
+      // can never tell you how many posts you have passed — measured at
+      // scrollY=22180 with 9 cards present. Scroll position is a browser
+      // primitive and owes nothing to Instagram's markup, which puts this in
+      // the durable layer alongside the route rules.
+      //
+      // Approximate by design: posts run ~740px, so the limit is "about 15".
+      // Taller posts mean fewer, which is the correct direction to fail.
+      //
+      // Side effect: the cap sits well below the height Instagram reserves but
+      // never renders, so the blank region at ~22000px becomes unreachable.
+      var SCROLL_LIMIT = 11000;
+      var capped = false;
+
+      function onFeed() {
+        try { return location.pathname === '/'; } catch (e) { return false; }
+      }
+
+      var endTimer = null;
+
+      function showEndBand() {
+        if (!document.body) return;
+        var el = document.getElementById('plainfeed-end');
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'plainfeed-end';
+          el.setAttribute('aria-hidden', 'true');
+          el.textContent = "That's everything.";
+          document.body.appendChild(el);
+        }
+        // Re-shows each time you hit the wall, then fades, so it never
+        // permanently covers the last post.
+        el.setAttribute('data-show', '1');
+        if (endTimer) clearTimeout(endTimer);
+        endTimer = setTimeout(function () {
+          try { el.removeAttribute('data-show'); } catch (e) {}
+        }, 2600);
+      }
+
+      function capScroll() {
+        if (!onFeed()) return;
+        try {
+          if (window.scrollY <= SCROLL_LIMIT) return;
+          window.scrollTo(0, SCROLL_LIMIT);
+          showEndBand();
+          if (capped) return;
+          capped = true;
+          send({ events: [{ source: 'R8', message:
+            'feed capped at ' + SCROLL_LIMIT + 'px (~15 posts)' }] });
+        } catch (e) {}
+      }
+
+      window.addEventListener('scroll', capScroll, { passive: true });
 
       var pending = null;
       function schedule() {

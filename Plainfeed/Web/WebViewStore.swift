@@ -13,6 +13,9 @@ final class WebViewStore: NSObject, ObservableObject {
 
     let diagnostics = DiagnosticsStore()
 
+    /// Transient message shown when a refresh is blocked by the cooldown.
+    @Published var toast: String?
+
     /// Set by the Diagnostics button in the banner; ContentView presents it.
     @Published var showDiagnostics = false
 
@@ -155,12 +158,60 @@ final class WebViewStore: NSObject, ObservableObject {
     // MARK: - Pull to refresh
 
     private func attachRefreshControl() {
+        // A/B switch for diagnosis: -PlainfeedNoRefresh 1
+        if UserDefaults.standard.bool(forKey: "PlainfeedNoRefresh") { return }
         let rc = UIRefreshControl()
         rc.addTarget(self, action: #selector(handleRefresh(_:)), for: .valueChanged)
         webView.scrollView.refreshControl = rc
     }
 
+    // MARK: - Feed cooldown
+
+    /// The feed is finite (R8): 15 posts, then a wait before you can pull for
+    /// more. Blocking only pull-to-refresh is the simple version — leaving the
+    /// app and returning can still reload `/`. The hard stop at 15 does the
+    /// real work; this stops the thumb reflex.
+    private static let cooldown: TimeInterval = 5 * 60
+    private let unlockKey = "plainfeed.feedRefreshUnlockAt"
+
+    private var feedUnlockAt: Date {
+        get { Date(timeIntervalSince1970: UserDefaults.standard.double(forKey: unlockKey)) }
+        set { UserDefaults.standard.set(newValue.timeIntervalSince1970, forKey: unlockKey) }
+    }
+
+    /// Starts the clock when a fresh feed is delivered.
+    private func startFeedCooldown() {
+        feedUnlockAt = Date().addingTimeInterval(Self.cooldown)
+    }
+
+    private func isFeed(_ url: URL?) -> Bool {
+        guard let url else { return false }
+        return Rules.classify(url) == .other && (url.path == "/" || url.path.isEmpty)
+    }
+
+    private func showToast(_ message: String) {
+        toast = message
+        Task {
+            try? await Task.sleep(for: .milliseconds(2600))
+            await MainActor.run { if self.toast == message { self.toast = nil } }
+        }
+    }
+
     @objc private func handleRefresh(_ sender: UIRefreshControl) {
+        // Feed-only cooldown. Everything else refreshes normally.
+        if isFeed(webView.url) {
+            let remaining = feedUnlockAt.timeIntervalSinceNow
+            if remaining > 0 {
+                sender.endRefreshing()
+                let minutes = max(1, Int((remaining / 60).rounded()))
+                showToast("Not yet — about \(minutes) minute\(minutes == 1 ? "" : "s")")
+                diagnostics.log("R8", "refresh blocked, \(Int(remaining))s remaining")
+                return
+            }
+            startFeedCooldown()
+            diagnostics.log("R8", "fresh tranche, cooldown restarted")
+        }
+
         // Logged because an unexpected reload is indistinguishable from a bug
         // at the UI level: it drops the keyboard and resets page state.
         diagnostics.log("app", "pull-to-refresh reloaded \(webView.url?.path ?? "—")")
@@ -230,6 +281,9 @@ extension WebViewStore: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         webView.scrollView.refreshControl?.endRefreshing()
+        if isFeed(webView.url), feedUnlockAt.timeIntervalSinceNow <= 0 {
+            startFeedCooldown()
+        }
         #if DEBUG
         webView.evaluateJavaScript("navigator.userAgent") { ua, _ in
             guard let ua = ua as? String else { return }

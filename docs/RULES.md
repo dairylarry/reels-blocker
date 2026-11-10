@@ -6,10 +6,11 @@ settings that apply to everything equally (the monochrome filter, tap-to-play,
 opening to the inbox) are app behaviour, not rules, and live in
 [../README.md](../README.md).
 
-**Last updated:** 2026-11-09 · v1.9 · 6 rules
+**Last updated:** 2026-11-09 · v1.10 · 7 rules
 
 | Date | Version | Change |
 | --- | --- | --- |
+| 2026-11-09 | 1.10 | **R8** feed capped by scroll depth; **R7** now collapses instead of removing |
 | 2026-11-09 | 1.9 | no rule changes — R7 verified hiding a real injected card |
 | 2026-11-09 | 1.8 | **R7 scoped** — no longer runs on `/direct/**` or auth routes |
 | 2026-10-10 | 1.7 | **R7** suggested feed cards hidden |
@@ -43,7 +44,8 @@ prefix would block every reel sent to you in a DM.
 | --- | --- | --- |
 | R3 | `a[href="/reels/"]` | Reels tab never paints |
 | R4 | queued reels in the reel viewer | removed, leaving only the one you opened |
-| R7 | algorithmically injected feed cards | removed from the home feed |
+| R7 | algorithmically injected feed cards | collapsed to 1px on the home feed |
+| R8 | the home feed past ~11,000px of scroll | scrolling stops; "That's everything." |
 
 **R7 never runs on `/direct/**`, `/accounts/**`, `/challenge/**`,
 `/two_factor/**` or `/oauth/**`.** It matches on `<article>`, and an unscoped
@@ -65,6 +67,17 @@ that means the discriminator broke rather than the feed being all suggestions.
 This is also the home feed's only reels defence: injected cards are where reels
 arrive in the feed, and a followed account's video post is technically a reel
 too — so matching reel URLs here would delete real posts (architecture §4.4).
+
+**R7 collapses rather than removes.** Instagram's load-more trigger needs cards
+in the layout and intersection tree, so `display: none` on one severs
+pagination and the feed dies early. A 1px sliver keeps the observer alive.
+
+R8 caps the home feed at ~11,000px of scroll — about 15 posts — then clamps
+scrolling and fades in a centred "That's everything." Pull-to-refresh is then
+blocked for 5 minutes. It measures **scroll depth, not cards**, because
+Instagram virtualises the feed to ~9 cards in the DOM at any depth, so counting
+cards can never work (selectors.md §5). Approximate by design: taller posts
+mean fewer, which is the correct direction to fail. Architecture §7.13.
 
 ## Deliberately not blocked
 

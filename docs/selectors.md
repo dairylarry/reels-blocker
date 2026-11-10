@@ -242,3 +242,44 @@ never hides a child that holds no reel, never acts when the common ancestor is
 **Assumption to confirm on device:** the opened reel is first in document
 order. True in this capture. If Instagram ever reorders, containment would keep
 the wrong reel — visible immediately, and the fix is one comparison.
+
+
+---
+
+## 5. The feed is virtualised (measured 2026-11-09)
+
+Instagram keeps a **sliding window of ~9 `<article>` elements** in the DOM and
+recycles them as you scroll. Measured on a signed-in device:
+
+```
+scrollY=22180  innerH=785  scrollH=25775  cards=9
+cardTops=[17019, 17711, 18442 … 20292, 20999]
+```
+
+22,000px down a 25,000px document, still only nine cards.
+
+**Consequences, both of which cost us an evening:**
+
+1. **You cannot count posts by counting cards.** A rule that caps the feed at N
+   posts by counting `article` elements never fires, because the count never
+   exceeds ~9 however far you scroll. R8 was first built this way and did
+   nothing.
+2. **`display: none` on a feed card severs the load-more trigger.** Instagram's
+   pagination depends on cards participating in layout and the intersection
+   tree. Hiding one outright stops the feed. R7 therefore **collapses**
+   (`height: 1px; overflow: hidden; opacity: 0`) rather than removing — the
+   sliver keeps the observer alive. R8 uses `display: none` deliberately, where
+   stopping the feed is the point.
+
+**Also: the blank feed was never ours.** Scrolling faster than the virtualiser
+renders leaves you in reserved-but-unrendered height — the white region at
+~22,000px. Two `blank` events recorded `cards=9 (hidden 0)` and `cards=6
+(hidden 0)`: nothing hidden by us, still blank. An earlier conclusion that R7
+caused it came from a single clean run after disabling R7, and was wrong.
+Capping the scroll at 11,000px makes that region unreachable, which fixes the
+symptom without ever having been the cause.
+
+**Rule of thumb this suggests:** prefer measurements the browser owns —
+`scrollY`, URL paths, element geometry — over anything that depends on how
+Instagram chooses to materialise its DOM. The virtualisation window is an
+implementation detail and can change without notice; scroll position cannot.

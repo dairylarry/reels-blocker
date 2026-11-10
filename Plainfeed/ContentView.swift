@@ -38,6 +38,25 @@ struct ContentView: View {
                 }
             }
             .task { store.loadStart() }
+            // Same treatment as the in-page "That's everything." overlay, so
+            // the two messages read as one voice. Kept native rather than
+            // injected so it still appears if the page is mid-load.
+            .overlay(alignment: .center) {
+                if let toast = store.toast {
+                    Text(toast)
+                        .font(.system(size: 21, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 26)
+                        .padding(.horizontal, 20)
+                        .background(.black.opacity(0.58))
+                        .background(.ultraThinMaterial)
+                        .offset(y: -60)          // ~42% of height, as in CSS
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: store.toast)
             .sheet(isPresented: $store.showDiagnostics) {
                 DiagnosticsView().environmentObject(store.diagnostics)
             }

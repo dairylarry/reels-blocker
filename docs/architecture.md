@@ -576,6 +576,15 @@ notice — not magic, just knowing which premise died.
 failure mode nobody anticipated is as invisible as it is today. They are a
 ratchet: each breakage teaches us one more assertion worth keeping.
 
+**Anchor on a settled state, never a transient one.** Five of our assertions
+have had to be retuned, and every single one failed the same way: the condition
+was true at rest but briefly false while loading, scrolling or settling. A
+mid-load feed has cards whose media blocks have not rendered; momentum carries
+`scrollY` past a clamp before it snaps back; reaching the end of a feed that is
+still filling looks identical to a void. Each produced a false alarm. Before
+adding an assertion, ask what it reads during the first second of a page's
+life and during a fast scroll — and skip rather than fail in those windows.
+
 ### 7.6.2 Diagnostics page (planned, not built)
 
 A **read-only** page — deliberately not called Settings, because a page called
@@ -706,6 +715,61 @@ colour while draining the interface is exactly the asymmetry that makes it work.
 
 Worth noting it composes well with the rest of the app: dark mode already
 follows the device, and this would sit on top of that rather than replacing it.
+
+---
+
+## 7.13 The finite feed (R8)
+
+The feed ends. Roughly 15 posts, then a wait before more.
+
+**Governing rule: when anything here is uncertain, fail toward LESS feed.**
+Ending early is acceptable; running long is not.
+
+### Why scroll depth, not post count
+
+Instagram virtualises the feed — ~9 `<article>` elements in the DOM at any
+depth (`selectors.md` §5). Counting cards cannot measure how many posts you
+have passed, and the first implementation of R8 did exactly that and never
+fired.
+
+So the cap is **scroll distance**: ~11,000px, which at ~740px per post is about
+fifteen. `scrollY` is a browser primitive and owes nothing to Instagram's
+markup, which puts R8 in the durable layer beside the route rules rather than
+the fragile DOM layer.
+
+It is approximate by design. Taller posts mean fewer, which is the correct
+direction to fail. You do not need exactly fifteen; you need the feed to end.
+
+| | Approach | Depends on | Verdict |
+| --- | --- | --- | --- |
+| Count `<article>` | cards in the DOM | virtualisation window | **cannot work** |
+| Track post shortcodes | a `/p/<id>/` selector | fragile DOM layer | works, far more complex |
+| **Scroll depth** | `scrollY` | nothing | **chosen** |
+
+### How it stops
+
+On the home feed only, once `scrollY` passes the limit, the page is clamped
+back to it. A centred overlay fades in — "That's everything." — positioned at
+42% height where the eye already is, and fading after 2.6s so it never sits on
+top of the last post permanently.
+
+A side effect worth keeping: the cap sits far below the height Instagram
+reserves but never renders, so the blank region that prompted this work becomes
+unreachable.
+
+### The cooldown, and what it does not do
+
+Five minutes, timestamped in `UserDefaults` so a force-quit does not reset it.
+Pull-to-refresh on `/` is blocked; attempting it shows the same centred overlay
+treatment reading "Not yet — about 4 minutes" — rounded, and only because you
+asked. No countdown on screen: a ticking timer is itself an attention hook,
+telling you exactly when to come back.
+
+**It only blocks pull-to-refresh.** Leaving to DMs and returning may reload `/`
+and hand you a fresh set. Preventing that would mean remembering the fifteen
+shortcodes and hiding anything outside that set — more machinery, and squarely
+in the fragile layer. Deliberately not built: the hard stop does the real work,
+and leaving the app is a decision rather than a thumb reflex.
 
 ---
 

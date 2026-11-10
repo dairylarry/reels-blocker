@@ -3,6 +3,41 @@
 Build number is shown in the launch banner, so a build on the phone can be
 identified without plugging it into Xcode.
 
+## v1.10 — 2026-11-09 — the feed is finite (R8)
+
+**Added**
+- **R8 — the home feed ends.** About 15 posts (~11,000px of scroll), then
+  scrolling clamps and a centred overlay fades in: "That's everything."
+- **5-minute cooldown** on pull-to-refresh for the feed, timestamped in
+  `UserDefaults` so force-quitting doesn't reset it. Attempting a refresh shows
+  the same overlay treatment — "Not yet — about 4 minutes", rounded, and only
+  because you asked. No countdown on screen, since a ticking timer is itself an
+  attention hook.
+
+**Fixed**
+- **R7 no longer removes cards, it collapses them to 1px.** `display: none` on
+  a feed card severs Instagram's load-more trigger and kills the feed early; a
+  sliver keeps the observer alive.
+
+**Findings** (selectors.md §5, architecture §7.13)
+- **Instagram virtualises the feed** — ~9 `<article>` elements in the DOM at any
+  depth, measured at `scrollY=22180, scrollH=25775, cards=9`. Counting cards
+  therefore cannot measure posts seen, which is why the first version of R8 did
+  nothing at all. The cap now measures scroll depth, a browser primitive that
+  owes nothing to Instagram's markup.
+- **The blank feed was never ours.** Scrolling faster than the virtualiser
+  renders leaves you in reserved-but-unrendered height. Two `blank` events
+  recorded `hidden 0` — nothing hidden by us, still blank. An earlier
+  conclusion blaming R7 came from one clean run and was wrong. The scroll cap
+  makes that region unreachable regardless.
+
+**Diagnostics**
+- Two more false alarms retuned: momentum carrying `scrollY` past the clamp is
+  not a failure, and reaching the bottom of a still-loading feed is not a void.
+  That is five retunes, all the same mistake — asserting a condition that holds
+  at rest but is briefly false while loading or scrolling. Written up as a rule
+  for new assertions in architecture §7.6.1.
+
 ## v1.9 — 2026-11-09 — keyboard fix, focus diagnostics
 
 **Fixed**
@@ -190,6 +225,41 @@ identified without plugging it into Xcode.
 - Anonymised real account handles and reel shortcodes in tracked docs. The
   selector analysis was quoting 8 accounts from the home feed, which revealed
   who the user follows; placeholders carry the same analytical value.
+
+## v1.10 — 2026-11-09 — the feed is finite (R8)
+
+**Added**
+- **R8 — the home feed ends.** About 15 posts (~11,000px of scroll), then
+  scrolling clamps and a centred overlay fades in: "That's everything."
+- **5-minute cooldown** on pull-to-refresh for the feed, timestamped in
+  `UserDefaults` so force-quitting doesn't reset it. Attempting a refresh shows
+  the same overlay treatment — "Not yet — about 4 minutes", rounded, and only
+  because you asked. No countdown on screen, since a ticking timer is itself an
+  attention hook.
+
+**Fixed**
+- **R7 no longer removes cards, it collapses them to 1px.** `display: none` on
+  a feed card severs Instagram's load-more trigger and kills the feed early; a
+  sliver keeps the observer alive.
+
+**Findings** (selectors.md §5, architecture §7.13)
+- **Instagram virtualises the feed** — ~9 `<article>` elements in the DOM at any
+  depth, measured at `scrollY=22180, scrollH=25775, cards=9`. Counting cards
+  therefore cannot measure posts seen, which is why the first version of R8 did
+  nothing at all. The cap now measures scroll depth, a browser primitive that
+  owes nothing to Instagram's markup.
+- **The blank feed was never ours.** Scrolling faster than the virtualiser
+  renders leaves you in reserved-but-unrendered height. Two `blank` events
+  recorded `hidden 0` — nothing hidden by us, still blank. An earlier
+  conclusion blaming R7 came from one clean run and was wrong. The scroll cap
+  makes that region unreachable regardless.
+
+**Diagnostics**
+- Two more false alarms retuned: momentum carrying `scrollY` past the clamp is
+  not a failure, and reaching the bottom of a still-loading feed is not a void.
+  That is five retunes, all the same mistake — asserting a condition that holds
+  at rest but is briefly false while loading or scrolling. Written up as a rule
+  for new assertions in architecture §7.6.1.
 
 ## v1.9 — 2026-11-09 — keyboard fix, focus diagnostics
 
