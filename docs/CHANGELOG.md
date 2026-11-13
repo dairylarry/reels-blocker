@@ -3,6 +3,16 @@
 Build number is shown in the launch banner, so a build on the phone can be
 identified without plugging it into Xcode.
 
+## v1.12 — 2026-11-12 — a line in the void
+
+**Changed**
+- The blank ending now carries a quiet "That's all." centred in it. The text
+  sits **inside** the void rather than floating over the page, so you come
+  across it by scrolling into the blank instead of having it cover the last
+  post — which is what the earlier overlay did.
+- Mid grey on no background, so it reads in both light and dark mode without
+  knowing anything about Instagram's theming.
+
 ## v1.11 — 2026-11-12 — the feed ends in blank space
 
 **Changed**
@@ -241,6 +251,16 @@ identified without plugging it into Xcode.
 - Anonymised real account handles and reel shortcodes in tracked docs. The
   selector analysis was quoting 8 accounts from the home feed, which revealed
   who the user follows; placeholders carry the same analytical value.
+
+## v1.12 — 2026-11-12 — a line in the void
+
+**Changed**
+- The blank ending now carries a quiet "That's all." centred in it. The text
+  sits **inside** the void rather than floating over the page, so you come
+  across it by scrolling into the blank instead of having it cover the last
+  post — which is what the earlier overlay did.
+- Mid grey on no background, so it reads in both light and dark mode without
+  knowing anything about Instagram's theming.
 
 ## v1.11 — 2026-11-12 — the feed ends in blank space
 

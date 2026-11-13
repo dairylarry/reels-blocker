@@ -749,8 +749,12 @@ direction to fail. You do not need exactly fifteen; you need the feed to end.
 ### How it ends
 
 Posts past the limit are removed, along with Instagram's trailing spacers and
-loading glimmers, and about a screen and a half of blank space is appended. You
-scroll off the end of the last post into nothing, and the document stops.
+loading glimmers, and about a screen and a half of blank space is appended,
+carrying a quiet "That's all." centred in it. You scroll off the end of the
+last post into the blank, meet the line, and the document stops.
+
+The text sits **inside** the void rather than floating over the page, so it is
+come across rather than imposed — the earlier overlay covered the last post.
 
 **This is deliberate, and it replaced a clamp.** The first version stopped the
 scroll dead and faded in a centred "That's everything." It worked, but the

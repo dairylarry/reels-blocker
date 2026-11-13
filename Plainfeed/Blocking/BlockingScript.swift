@@ -42,10 +42,23 @@ enum BlockingScript {
        severing the loader is exactly the intent. */
     [data-plainfeed-hidden] { display: none !important; }
 
-    /* The feed ends in blank space rather than a message. No background is
-       set, so it inherits the page's own — which keeps it correct in dark
-       mode without knowing anything about Instagram's theming. */
-    #plainfeed-void { height: 150vh; pointer-events: none; }
+    /* The feed ends in blank space, with a quiet line centred in it. The text
+       lives INSIDE the void rather than floating over the content, so you come
+       across it by scrolling into the blank instead of having it cover the
+       last post.
+
+       No background is set, so it inherits the page's own and stays correct in
+       dark mode. The colour is a mid grey that reads on either. */
+    #plainfeed-void {
+      height: 150vh;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: 500 17px/1.4 -apple-system, system-ui, sans-serif;
+      letter-spacing: 0.2px;
+      color: #8e8e8e;
+    }
 
     /* 40% monochrome. A display setting, not a blocking rule — it decides
        nothing, it tints everything equally.
@@ -571,6 +584,7 @@ enum BlockingScript {
         var v = document.createElement('div');
         v.id = 'plainfeed-void';
         v.setAttribute('aria-hidden', 'true');
+        v.textContent = "That's all.";
         document.body.appendChild(v);
       }
 

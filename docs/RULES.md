@@ -6,7 +6,7 @@ settings that apply to everything equally (the monochrome filter, tap-to-play,
 opening to the inbox) are app behaviour, not rules, and live in
 [../README.md](../README.md).
 
-**Last updated:** 2026-11-12 · v1.11 · 7 rules
+**Last updated:** 2026-11-12 · v1.12 · 7 rules
 
 | Date | Version | Change |
 | --- | --- | --- |
@@ -46,7 +46,7 @@ prefix would block every reel sent to you in a DM.
 | R3 | `a[href="/reels/"]` | Reels tab never paints |
 | R4 | queued reels in the reel viewer | removed, leaving only the one you opened |
 | R7 | algorithmically injected feed cards | collapsed to 1px on the home feed |
-| R8 | the home feed past ~11,000px of scroll | posts end; you scroll into blank space |
+| R8 | the home feed past ~11,000px of scroll | posts end; you scroll into blank space and "That's all." |
 
 **R7 never runs on `/direct/**`, `/accounts/**`, `/challenge/**`,
 `/two_factor/**` or `/oauth/**`.** It matches on `<article>`, and an unscoped
