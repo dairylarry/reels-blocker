@@ -42,29 +42,10 @@ enum BlockingScript {
        severing the loader is exactly the intent. */
     [data-plainfeed-hidden] { display: none !important; }
 
-    /* Centred overlay rather than a strip at the bottom: this lands where
-       the eye already is when scrolling stops, and a thin band above the nav
-       bar was easy to miss. Fades out on its own so it never sits on top of
-       the last post. */
-    #plainfeed-end {
-      position: fixed !important;
-      left: 0; right: 0;
-      top: 42%;
-      transform: translateY(-50%);
-      padding: 26px 20px;
-      text-align: center;
-      font: 600 21px/1.35 -apple-system, system-ui, sans-serif;
-      letter-spacing: 0.2px;
-      color: #fff;
-      background: rgba(0, 0, 0, 0.58);
-      -webkit-backdrop-filter: blur(6px);
-      backdrop-filter: blur(6px);
-      z-index: 2147483646;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 220ms ease;
-    }
-    #plainfeed-end[data-show="1"] { opacity: 1; }
+    /* The feed ends in blank space rather than a message. No background is
+       set, so it inherits the page's own — which keeps it correct in dark
+       mode without knowing anything about Instagram's theming. */
+    #plainfeed-void { height: 150vh; pointer-events: none; }
 
     /* 40% monochrome. A display setting, not a blocking rule — it decides
        nothing, it tints everything equally.
@@ -318,13 +299,20 @@ enum BlockingScript {
           if (!onFeed()) {
             add('R8', 'feed within scroll cap', 'skipped', 'not the home feed');
           } else {
-            // Once capped, the mechanism has engaged and momentum can carry
-            // scrollY briefly past the limit before the clamp pulls it back.
-            // That overshoot is not a failure; only an UNcapped overrun is.
-            var y = Math.round(window.scrollY);
-            var ok = capped || y <= SCROLL_LIMIT;
-            add('R8', 'feed within scroll cap', ok ? 'pass' : 'fail',
-                'scrollY=' + y + ' of ' + SCROLL_LIMIT + (capped ? ' — capped' : ''));
+            // Scrolling past the limit is expected now — that is the void.
+            // The claim is that no VISIBLE post lives beyond it.
+            var y2 = window.scrollY, beyond = 0, visible = 0;
+            var all = document.querySelectorAll('article');
+            for (var q = 0; q < all.length; q++) {
+              var el = all[q];
+              if (el.hasAttribute('data-plainfeed-hidden')) continue;
+              if (el.hasAttribute('data-plainfeed-collapsed')) continue;
+              visible++;
+              if (el.getBoundingClientRect().top + y2 >= SCROLL_LIMIT) beyond++;
+            }
+            add('R8', 'no posts past the cap', beyond === 0 ? 'pass' : 'fail',
+                visible + ' posts, ' + beyond + ' past ' + SCROLL_LIMIT +
+                (capped ? ' — ended' : ' — filling'));
           }
         } catch (e) { add('R8', 'feed within scroll cap', 'fail', 'threw: ' + e); }
 
@@ -578,41 +566,56 @@ enum BlockingScript {
         try { return location.pathname === '/'; } catch (e) { return false; }
       }
 
-      var endTimer = null;
-
-      function showEndBand() {
-        if (!document.body) return;
-        var el = document.getElementById('plainfeed-end');
-        if (!el) {
-          el = document.createElement('div');
-          el.id = 'plainfeed-end';
-          el.setAttribute('aria-hidden', 'true');
-          el.textContent = "That's everything.";
-          document.body.appendChild(el);
-        }
-        // Re-shows each time you hit the wall, then fades, so it never
-        // permanently covers the last post.
-        el.setAttribute('data-show', '1');
-        if (endTimer) clearTimeout(endTimer);
-        endTimer = setTimeout(function () {
-          try { el.removeAttribute('data-show'); } catch (e) {}
-        }, 2600);
+      function addVoid() {
+        if (document.getElementById('plainfeed-void') || !document.body) return;
+        var v = document.createElement('div');
+        v.id = 'plainfeed-void';
+        v.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(v);
       }
 
-      function capScroll() {
+      // Hide every post past the limit, then everything trailing it inside the
+      // feed container — Instagram's spacers and loading glimmers, which would
+      // otherwise leave thousands of pixels of reserved height. What remains
+      // is the void we append: about one and a half screens of blank, then the
+      // document simply ends.
+      function capFeed() {
         if (!onFeed()) return;
-        try {
-          if (window.scrollY <= SCROLL_LIMIT) return;
-          window.scrollTo(0, SCROLL_LIMIT);
-          showEndBand();
-          if (capped) return;
-          capped = true;
-          send({ events: [{ source: 'R8', message:
-            'feed capped at ' + SCROLL_LIMIT + 'px (~15 posts)' }] });
-        } catch (e) {}
+        var arts = document.querySelectorAll('article');
+        if (!arts.length) return;
+
+        var y = window.scrollY, last = null, cut = false;
+        for (var i = 0; i < arts.length; i++) {
+          var a = arts[i];
+          if (a.hasAttribute('data-plainfeed-collapsed')) continue;   // R7
+          if (a.hasAttribute('data-plainfeed-hidden')) { cut = true; continue; }
+          var top = a.getBoundingClientRect().top + y;
+          if (top < SCROLL_LIMIT) { last = a; continue; }
+          a.setAttribute('data-plainfeed-hidden', '1');
+          cut = true;
+        }
+        if (!cut || !last) return;
+
+        var container = last.parentElement;
+        while (container && container.querySelectorAll('article').length < 2) {
+          container = container.parentElement;
+        }
+        if (container) {
+          var seen = false;
+          Array.prototype.slice.call(container.children).forEach(function (child) {
+            if (child.contains(last)) { seen = true; return; }
+            if (seen) child.setAttribute('data-plainfeed-hidden', '1');
+          });
+        }
+        addVoid();
+
+        if (capped) return;
+        capped = true;
+        send({ events: [{ source: 'R8', message:
+          'feed ended past ' + SCROLL_LIMIT + 'px (~15 posts)' }] });
       }
 
-      window.addEventListener('scroll', capScroll, { passive: true });
+      window.addEventListener('scroll', function () { capFeed(); }, { passive: true });
 
       var pending = null;
       function schedule() {
@@ -623,6 +626,7 @@ enum BlockingScript {
           runRule('mono', mono);            // re-add if IG replaces <body>
           runRule('R4', containReels);
           runRule('R7', hideSuggested);
+          runRule('R8', capFeed);
           checkFocusStolen(focusBefore);
           runRule('report', report);
         }, 150);
@@ -632,6 +636,7 @@ enum BlockingScript {
         runRule('mono', mono);
         runRule('R4', containReels);
         runRule('R7', hideSuggested);
+        runRule('R8', capFeed);
         runRule('report', report);
         new MutationObserver(schedule).observe(document.documentElement, {
           childList: true, subtree: true

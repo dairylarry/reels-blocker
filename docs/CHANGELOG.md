@@ -3,6 +3,22 @@
 Build number is shown in the launch banner, so a build on the phone can be
 identified without plugging it into Xcode.
 
+## v1.11 — 2026-11-12 — the feed ends in blank space
+
+**Changed**
+- **R8 no longer clamps the scroll or shows a message.** Posts past the limit
+  are removed along with Instagram's trailing spacers, and about a screen and a
+  half of blank space is appended — so the feed runs out instead of announcing
+  itself. Preferred to the clamp on taste: nothing to design, translate or
+  maintain, and the ending is starker.
+- This reliably reproduces what Instagram's virtualiser used to do by accident
+  when you outran it. The accident needed you to scroll fast enough; this
+  always happens.
+- The void sets no background, inheriting the page's own, so it stays correct
+  in dark mode.
+- R8's assertion changed accordingly: scrolling past the limit is now expected,
+  and the claim is that no *visible* post lives beyond it.
+
 ## v1.10 — 2026-11-09 — the feed is finite (R8)
 
 **Added**
@@ -225,6 +241,22 @@ identified without plugging it into Xcode.
 - Anonymised real account handles and reel shortcodes in tracked docs. The
   selector analysis was quoting 8 accounts from the home feed, which revealed
   who the user follows; placeholders carry the same analytical value.
+
+## v1.11 — 2026-11-12 — the feed ends in blank space
+
+**Changed**
+- **R8 no longer clamps the scroll or shows a message.** Posts past the limit
+  are removed along with Instagram's trailing spacers, and about a screen and a
+  half of blank space is appended — so the feed runs out instead of announcing
+  itself. Preferred to the clamp on taste: nothing to design, translate or
+  maintain, and the ending is starker.
+- This reliably reproduces what Instagram's virtualiser used to do by accident
+  when you outran it. The accident needed you to scroll fast enough; this
+  always happens.
+- The void sets no background, inheriting the page's own, so it stays correct
+  in dark mode.
+- R8's assertion changed accordingly: scrolling past the limit is now expected,
+  and the claim is that no *visible* post lives beyond it.
 
 ## v1.10 — 2026-11-09 — the feed is finite (R8)
 

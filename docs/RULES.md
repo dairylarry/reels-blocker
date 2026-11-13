@@ -6,10 +6,11 @@ settings that apply to everything equally (the monochrome filter, tap-to-play,
 opening to the inbox) are app behaviour, not rules, and live in
 [../README.md](../README.md).
 
-**Last updated:** 2026-11-09 · v1.10 · 7 rules
+**Last updated:** 2026-11-12 · v1.11 · 7 rules
 
 | Date | Version | Change |
 | --- | --- | --- |
+| 2026-11-12 | 1.11 | **R8** ends the feed in blank space instead of clamping |
 | 2026-11-09 | 1.10 | **R8** feed capped by scroll depth; **R7** now collapses instead of removing |
 | 2026-11-09 | 1.9 | no rule changes — R7 verified hiding a real injected card |
 | 2026-11-09 | 1.8 | **R7 scoped** — no longer runs on `/direct/**` or auth routes |
@@ -45,7 +46,7 @@ prefix would block every reel sent to you in a DM.
 | R3 | `a[href="/reels/"]` | Reels tab never paints |
 | R4 | queued reels in the reel viewer | removed, leaving only the one you opened |
 | R7 | algorithmically injected feed cards | collapsed to 1px on the home feed |
-| R8 | the home feed past ~11,000px of scroll | scrolling stops; "That's everything." |
+| R8 | the home feed past ~11,000px of scroll | posts end; you scroll into blank space |
 
 **R7 never runs on `/direct/**`, `/accounts/**`, `/challenge/**`,
 `/two_factor/**` or `/oauth/**`.** It matches on `<article>`, and an unscoped
@@ -72,9 +73,10 @@ too — so matching reel URLs here would delete real posts (architecture §4.4).
 in the layout and intersection tree, so `display: none` on one severs
 pagination and the feed dies early. A 1px sliver keeps the observer alive.
 
-R8 caps the home feed at ~11,000px of scroll — about 15 posts — then clamps
-scrolling and fades in a centred "That's everything." Pull-to-refresh is then
-blocked for 5 minutes. It measures **scroll depth, not cards**, because
+R8 caps the home feed at ~11,000px of scroll — about 15 posts. Posts past the
+limit are removed along with Instagram's trailing spacers, and about a screen
+and a half of blank space is appended, so the feed simply runs out rather than
+announcing itself. Pull-to-refresh is then blocked for 5 minutes. It measures **scroll depth, not cards**, because
 Instagram virtualises the feed to ~9 cards in the DOM at any depth, so counting
 cards can never work (selectors.md §5). Approximate by design: taller posts
 mean fewer, which is the correct direction to fail. Architecture §7.13.

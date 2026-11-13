@@ -746,16 +746,23 @@ direction to fail. You do not need exactly fifteen; you need the feed to end.
 | Track post shortcodes | a `/p/<id>/` selector | fragile DOM layer | works, far more complex |
 | **Scroll depth** | `scrollY` | nothing | **chosen** |
 
-### How it stops
+### How it ends
 
-On the home feed only, once `scrollY` passes the limit, the page is clamped
-back to it. A centred overlay fades in — "That's everything." — positioned at
-42% height where the eye already is, and fading after 2.6s so it never sits on
-top of the last post permanently.
+Posts past the limit are removed, along with Instagram's trailing spacers and
+loading glimmers, and about a screen and a half of blank space is appended. You
+scroll off the end of the last post into nothing, and the document stops.
 
-A side effect worth keeping: the cap sits far below the height Instagram
-reserves but never renders, so the blank region that prompted this work becomes
-unreachable.
+**This is deliberate, and it replaced a clamp.** The first version stopped the
+scroll dead and faded in a centred "That's everything." It worked, but the
+blank ending reads better: the feed runs out rather than announcing itself, and
+there is no message to design, translate or maintain.
+
+It also restores — reliably — the behaviour that Instagram's virtualiser
+produced by accident when you outran it. The accident only happened if you
+scrolled fast enough; this always does.
+
+The void sets no background colour, so it inherits the page's own and stays
+correct in dark mode without knowing anything about Instagram's theming.
 
 ### The cooldown, and what it does not do
 
