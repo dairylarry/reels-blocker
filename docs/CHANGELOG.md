@@ -3,6 +3,36 @@
 Build number is shown in the launch banner, so a build on the phone can be
 identified without plugging it into Xcode.
 
+## v1.13 — 2026-11-12 — behaviour tests, and a bug they caught
+
+**Fixed**
+- **R7 was hiding posts from unverified accounts you follow.** The rule matches
+  a text button with no icon before the media block. On a *verified* account
+  the author block carries the Verified `<svg>` and is excluded; on an
+  **unverified** one it is a `[role="button"]` holding the handle with no icon
+  at all — so it matched, and the post was hidden.
+
+  Every organic card in the captured feed happened to be a verified account,
+  which is why this was never observed. It is exactly the failure §4.4 exists
+  to prevent: deleting posts from people you actually follow.
+
+  The fix distinguishes them structurally — the author block always contains
+  the profile link, a Follow button never does.
+
+**Added**
+- `./scripts/test-dom.sh` — behaviour tests that run the **real** script,
+  extracted from `BlockingScript.swift`, against DOM fixtures in jsdom. Not a
+  reimplementation: one would pass while the shipped code was broken.
+
+  Fifteen behaviours locked, chosen as the ones whose silent failure costs
+  most — R7 hiding only injected cards and *collapsing* rather than removing,
+  ads left alone, R7 skipping `/direct/**`, R4 containing a reel queue while
+  never touching a video sent in a DM, R8 ending the feed at the cap, and DOM
+  rules staying off auth routes.
+
+  jsdom is a test-only dependency, installed on first run; the app has no JS
+  build step.
+
 ## v1.12 — 2026-11-12 — a line in the void
 
 **Changed**
@@ -251,6 +281,36 @@ identified without plugging it into Xcode.
 - Anonymised real account handles and reel shortcodes in tracked docs. The
   selector analysis was quoting 8 accounts from the home feed, which revealed
   who the user follows; placeholders carry the same analytical value.
+
+## v1.13 — 2026-11-12 — behaviour tests, and a bug they caught
+
+**Fixed**
+- **R7 was hiding posts from unverified accounts you follow.** The rule matches
+  a text button with no icon before the media block. On a *verified* account
+  the author block carries the Verified `<svg>` and is excluded; on an
+  **unverified** one it is a `[role="button"]` holding the handle with no icon
+  at all — so it matched, and the post was hidden.
+
+  Every organic card in the captured feed happened to be a verified account,
+  which is why this was never observed. It is exactly the failure §4.4 exists
+  to prevent: deleting posts from people you actually follow.
+
+  The fix distinguishes them structurally — the author block always contains
+  the profile link, a Follow button never does.
+
+**Added**
+- `./scripts/test-dom.sh` — behaviour tests that run the **real** script,
+  extracted from `BlockingScript.swift`, against DOM fixtures in jsdom. Not a
+  reimplementation: one would pass while the shipped code was broken.
+
+  Fifteen behaviours locked, chosen as the ones whose silent failure costs
+  most — R7 hiding only injected cards and *collapsing* rather than removing,
+  ads left alone, R7 skipping `/direct/**`, R4 containing a reel queue while
+  never touching a video sent in a DM, R8 ending the feed at the cap, and DOM
+  rules staying off auth routes.
+
+  jsdom is a test-only dependency, installed on first run; the app has no JS
+  build step.
 
 ## v1.12 — 2026-11-12 — a line in the void
 

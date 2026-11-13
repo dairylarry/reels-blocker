@@ -389,6 +389,12 @@ enum BlockingScript {
           var mediaFollows = b.compareDocumentPosition(media) & Node.DOCUMENT_POSITION_FOLLOWING;
           if (!mediaFollows) continue;
           if (b.querySelector('svg')) continue;    // icon button, not Follow
+          // The author block is also a [role=button] holding text, and on an
+          // UNVERIFIED account it carries no icon either — so without this it
+          // matches and the post gets hidden. It always contains the profile
+          // link; a Follow button never does. Caught by tests/dom, after every
+          // organic card in the captured feed happened to be verified.
+          if (b.querySelector('a, [role="link"]')) continue;
           if (!(b.textContent || '').trim()) continue;
           return true;
         }

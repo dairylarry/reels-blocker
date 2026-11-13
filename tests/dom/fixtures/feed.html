@@ -1,0 +1,54 @@
+<!doctype html><html><body>
+<main>
+  <!-- organic, verified: every header button carries an <svg> -->
+  <article id="organic-verified">
+    <div role="button">
+      <a role="link" href="/followed_a/"></a><span dir="auto">followed_a</span>
+      <svg aria-label="Verified"><title>Verified</title></svg>
+    </div>
+    <div role="button"><svg aria-label="More options"><title>More options</title></svg></div>
+    <div role="presentation"><img src="x.jpg"></div>
+    <div role="button"><svg aria-label="Like"></svg></div>
+    <span role="button">1,204</span>
+  </article>
+
+  <!-- organic, NOT verified: header has no <svg> at all.
+       The author block still has text, so this is the shape most likely to
+       trip R7's "text button before the media" discriminator. Every organic
+       card in the captured feed happened to be a verified account, so this
+       case was never observed. -->
+  <article id="organic-plain">
+    <div role="button">
+      <a role="link" href="/followed_b/"></a><span dir="auto">followed_b</span>
+    </div>
+    <div role="button"><svg aria-label="More options"><title>More options</title></svg></div>
+    <div role="presentation"><img src="x.jpg"></div>
+    <span role="button">88</span>
+  </article>
+
+  <!-- injected: a text button with no icon, before the media block -->
+  <article id="injected">
+    <div role="button">
+      <a role="link" href="/suggested_a/"></a><span dir="auto">suggested_a</span>
+      <svg aria-label="Verified"><title>Verified</title></svg>
+      <span>Suggested for you</span>
+    </div>
+    <div role="button">Follow</div>
+    <div role="button"><svg aria-label="More options"><title>More options</title></svg></div>
+    <div role="presentation"><img src="x.jpg"></div>
+  </article>
+
+  <!-- ad: CTA sits BELOW the media and carries a chevron icon -->
+  <article id="ad">
+    <div role="button">
+      <a role="link" href="/advertiser_a/"></a><span dir="auto">advertiser_a</span>
+      <svg aria-label="Verified"><title>Verified</title></svg>
+      <span>Ad</span>
+    </div>
+    <div role="button"><svg aria-label="More options"><title>More options</title></svg></div>
+    <div role="presentation"><img src="x.jpg"></div>
+    <div role="button">Shop now<svg aria-label="Right chevron"></svg></div>
+  </article>
+</main>
+<nav><a href="/"></a><a href="/direct/inbox/"></a><a href="/reels/"></a></nav>
+</body></html>

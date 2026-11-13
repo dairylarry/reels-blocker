@@ -6,10 +6,11 @@ settings that apply to everything equally (the monochrome filter, tap-to-play,
 opening to the inbox) are app behaviour, not rules, and live in
 [../README.md](../README.md).
 
-**Last updated:** 2026-11-12 · v1.12 · 7 rules
+**Last updated:** 2026-11-12 · v1.13 · 7 rules
 
 | Date | Version | Change |
 | --- | --- | --- |
+| 2026-11-12 | 1.13 | **R7** no longer hides posts from unverified accounts |
 | 2026-11-12 | 1.11 | **R8** ends the feed in blank space instead of clamping |
 | 2026-11-09 | 1.10 | **R8** feed capped by scroll depth; **R7** now collapses instead of removing |
 | 2026-11-09 | 1.9 | no rule changes — R7 verified hiding a real injected card |
@@ -107,6 +108,9 @@ ships (architecture §7.6).
 ---
 
 Implementation: `Plainfeed/Blocking/Rules.swift` (R1, R2) and
-`BlockingScript.swift` (R3–R5). Route rules are covered by
-`./scripts/test-routes.sh`. What each rule assumes, and how it fails, is in
+`BlockingScript.swift` (R3–R8).
+
+Tests: `./scripts/test-routes.sh` for the route rules, and
+`./scripts/test-dom.sh` for the injected ones — the latter runs the real
+script against DOM fixtures in jsdom rather than a reimplementation. What each rule assumes, and how it fails, is in
 architecture §7.6.

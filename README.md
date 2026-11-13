@@ -51,8 +51,9 @@ that have actually gone wrong.
 # 1. make the change, then check it on the simulator
 ./scripts/run-sim.sh
 
-# 2. if route rules changed
-./scripts/test-routes.sh
+# 2. if rules changed
+./scripts/test-routes.sh      # route rules (R1, R2)
+./scripts/test-dom.sh         # injected rules (R3-R8), real script in jsdom
 
 # 3. bump the version — one changelog entry = one version
 ./scripts/bump.sh 1.5

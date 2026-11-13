@@ -1,0 +1,6 @@
+{
+  "name": "plainfeed-tests",
+  "private": true,
+  "description": "Test-only dependencies. The app itself has no JS build step.",
+  "devDependencies": { "jsdom": "^27.0.0" }
+}
